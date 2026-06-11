@@ -1,0 +1,61 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read_timeout_seconds: 30
+  write_timeout_seconds: 120
+
+queue:
+  workers: 500
+  max_queue_size: 10000
+  job_timeout_seconds: 30
+  max_retries: 3
+
+tor:
+  enabled: false
+  socks_host: "127.0.0.1"
+  socks_port: 9050
+
+ai:
+  provider: "groq"
+  model: "llama-3.3-70b-versatile"
+  key: "${GROQ_API_KEY}"
+
+geoip:
+  city_db_path: "data/GeoLite2-City.mmdb"
+  asn_db_path: "data/GeoLite2-ASN.mmdb"
+  account_id: 0
+  license_key: ""
+
+rate_limit:
+  requests_per_minute: 10
+  burst: 3
+
+api_keys:
+  require_key: false
+  keys: []
+
+collectors:
+  dns:        { enabled: true }
+  whois:      { enabled: true }
+  crtsh:      { enabled: true }
+  subdomains: { enabled: true }
+  dnsdumpster:{ enabled: true }
+  geoip:      { enabled: true }
+  shodan:     { enabled: true, key: "${SHODAN_KEY}" }
+  censys:     { enabled: true, key: "${CENSYS_KEY}" }
+  virustotal: { enabled: true, key: "${VT_KEY}" }
+  greynoise:  { enabled: false, key: "${GREYNOISE_KEY}" }
+  github:     { enabled: true,  key: "${GITHUB_TOKEN}" }
+  emailrep:   { enabled: false, key: "${EMAILREP_KEY}" }
+  urlscan:    { enabled: true, key: "${URLSCAN_KEY}" }
+  ethereum:   { enabled: true, key: "${ETHERSCAN_KEY}" }
+  tron:       { enabled: true, key: "${TRON_KEY}" }
+  bitcoin:    { enabled: true }
+  solana:     { enabled: true }
+  searchengine:{ enabled: true }
+  wayback:    { enabled: true }
+  pastebin:   { enabled: true }
+  onion:      { enabled: false }
+  social:     { enabled: true }
+  threatintel:{ enabled: true }
+  ai_summary: { enabled: true, key: "${GROQ_API_KEY}" }

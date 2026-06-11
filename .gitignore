@@ -1,0 +1,13 @@
+# Secrets
+api.txt
+.env
+
+# Build artifacts
+bin/
+
+# GeoIP databases (downloaded separately)
+data/GeoLite2-*.mmdb
+
+# Node.js
+web/node_modules/
+web/.next/

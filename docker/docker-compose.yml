@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  nebula:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+      - ../configs/config.yaml:/etc/nebula/config.yaml:ro
+    env_file:
+      - ../.env
+    environment:
+      NEBULA_CONFIG: /etc/nebula/config.yaml
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  tor:
+    image: tor:latest
+    restart: unless-stopped
+    profiles:
+      - tor
+    ports:
+      - "9050:9050"
