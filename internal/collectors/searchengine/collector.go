@@ -2,10 +2,12 @@ package searchengine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -16,18 +18,22 @@ import (
 )
 
 type Collector struct {
-	client *http.Client
+	client       *http.Client
+	apiKey       string
+	searchEngineID string
 }
 
 func New() *Collector {
 	return &Collector{
-		client: &http.Client{Timeout: 15 * time.Second},
+		client:         &http.Client{Timeout: 15 * time.Second},
+		apiKey:         os.Getenv("GOOGLE_CUSTOM_SEARCH_API_KEY"),
+		searchEngineID: os.Getenv("GOOGLE_CUSTOM_SEARCH_ENGINE_ID"),
 	}
 }
 
 func (c *Collector) Name() string            { return "searchengine" }
 func (c *Collector) SupportedTypes() []string { return []string{"all"} }
-func (c *Collector) RequiresKey() bool        { return false }
+func (c *Collector) RequiresKey() bool        { return c.apiKey != "" && c.searchEngineID != "" }
 
 var (
 	reName    = regexp.MustCompile(`[A-Z][a-z]+ [A-Z][a-z]+`)
@@ -59,20 +65,28 @@ func (c *Collector) Execute(ctx context.Context, query string, qtype string) ([]
 		default:
 		}
 
-		res, err := c.searchMojeek(ctx, q)
-		if err == nil {
+		// Use DuckDuckGo as primary (free, reliable, no API key needed)
+		res, err := c.searchDuckDuckGo(ctx, q)
+		if err == nil && len(res) > 0 {
 			results = append(results, res...)
 		}
 
-		res, err = c.searchGoogle(ctx, q)
-		if err == nil {
+		// Try Bing as secondary (free scraping, often works better than Google)
+		res, err = c.searchBing(ctx, q)
+		if err == nil && len(res) > 0 {
 			results = append(results, res...)
 		}
 
-		res, err = c.searchDuckDuckGo(ctx, q)
-		if err == nil {
-			results = append(results, res...)
+		// Only use Google API if credentials are provided (paid but high quality)
+		if c.apiKey != "" && c.searchEngineID != "" {
+			res, err = c.searchGoogleAPI(ctx, q)
+			if err == nil && len(res) > 0 {
+				results = append(results, res...)
+			}
 		}
+
+		// Skip direct Google scraping - too many CAPTCHAs
+		// Skip Mojeek - returns too much noise
 	}
 
 	return results, nil
@@ -223,6 +237,134 @@ func isBlocked(body string) bool {
 		}
 	}
 	return false
+}
+
+type GoogleSearchResponse struct {
+	Kind       string `json:"kind"`
+	URL        struct {
+		Type      string `json:"type"`
+		Template  string `json:"template"`
+	} `json:"url"`
+	Queries    struct {
+		Request []struct {
+			Title       string `json:"title"`
+			TotalResults string `json:"totalResults"`
+			SearchTerms string `json:"searchTerms"`
+			Count       int    `json:"count"`
+			StartIndex  int    `json:"startIndex"`
+			InputEncoding string `json:"inputEncoding"`
+			OutputEncoding string `json:"outputEncoding"`
+		} `json:"request"`
+	} `json:"queries"`
+	Context    struct {
+		Title string `json:"title"`
+	} `json:"context"`
+	Items      []struct {
+		Kind            string `json:"kind"`
+		Title           string `json:"title"`
+		HTMLTitle       string `json:"htmlTitle"`
+		Link            string `json:"link"`
+		DisplayLink     string `json:"displayLink"`
+		Snippet         string `json:"snippet"`
+		HTMLSnippet     string `json:"htmlSnippet"`
+		CSEImage        struct {
+			Src string `json:"src"`
+		} `json:"cse_image"`
+		CSEPublicURL struct {
+			Href string `json:"href"`
+		} `json:"cse_public_url"`
+		Mime            string `json:"mime"`
+		FileFormat      string `json:"fileFormat"`
+		ImageObject     struct {
+			Width  string `json:"width"`
+			Height string `json:"height"`
+		} `json:"imageObject"`
+		Pagemap         struct {
+			CSEThumbnail []struct {
+				Src    string `json:"src"`
+				Width  string `json:"width"`
+				Height string `json:"height"`
+			} `json:"cse_thumbnail,omitempty"`
+			Metatags   []map[string]string `json:"metatags,omitempty"`
+		} `json:"pagemap,omitempty"`
+	} `json:"items"`
+	SearchInformation struct {
+		SearchTime       float64 `json:"searchTime"`
+		FormattedSearchTime string `json:"formattedSearchTime"`
+		TotalResults     string `json:"totalResults"`
+		FormattedTotalResults string `json:"formattedTotalResults"`
+	} `json:"searchInformation"`
+	SERPCustomVariables struct {
+		SerpapiIframeSrc string `json:"serpapi_iframe_src"`
+		SerpapiIframeSrcV2 string `json:"serpapi_iframe_src_v2"`
+	} `json:"serpapi_custom_variables,omitempty"`
+}
+
+func (c *Collector) searchGoogleAPI(ctx context.Context, query string) ([]collectors.Result, error) {
+	qEnc := url.QueryEscape(query)
+	searchURL := fmt.Sprintf(
+		"https://www.googleapis.com/customsearch/v1?key=%s&cx=%s&q=%s",
+		c.apiKey,
+		c.searchEngineID,
+		qEnc,
+	)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var googleResp GoogleSearchResponse
+	if err := json.Unmarshal(body, &googleResp); err != nil {
+		return nil, err
+	}
+
+	var results []collectors.Result
+	seenURL := make(map[string]bool)
+
+	for _, item := range googleResp.Items {
+		if item.Link == "" || item.Title == "" {
+			continue
+		}
+		if seenURL[item.Link] {
+			continue
+		}
+		seenURL[item.Link] = true
+
+		results = append(results, collectors.Result{
+			ID:          uuid.NewString(),
+			Collector:   "searchengine",
+			Type:        "web_result",
+			Title:       item.Title,
+			Description: item.Snippet,
+			URL:         item.Link,
+			Data: map[string]any{
+				"url":        item.Link,
+				"query":      query,
+				"snippet":    item.Snippet,
+				"engine":     "google_api",
+				"displayLink": item.DisplayLink,
+			},
+			Tags:       []string{"web", "search", "google_api", "link"},
+			Confidence: 0.85,
+			Source:     "google.com (API)",
+			FoundAt:    time.Now(),
+		})
+	}
+
+	return results, nil
 }
 
 func (c *Collector) searchGoogle(ctx context.Context, query string) ([]collectors.Result, error) {
@@ -404,6 +546,94 @@ func (c *Collector) searchDuckDuckGo(ctx context.Context, query string) ([]colle
 	extracted = c.extractProfiles(content, query)
 	for i := range extracted {
 		extracted[i].Source = "duckduckgo.com"
+	}
+	results = append(results, extracted...)
+
+	return results, nil
+}
+
+func (c *Collector) searchBing(ctx context.Context, query string) ([]collectors.Result, error) {
+	qEnc := url.QueryEscape(query)
+	searchURL := fmt.Sprintf("https://www.bing.com/search?q=%s", qEnc)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(string(body)))
+	if err != nil {
+		return nil, err
+	}
+
+	var results []collectors.Result
+	seenURL := make(map[string]bool)
+
+	doc.Find("li.b_algo").Each(func(_ int, s *goquery.Selection) {
+		linkEl := s.Find("h2 a").First()
+		href, exists := linkEl.Attr("href")
+		if !exists || href == "" {
+			return
+		}
+		if !strings.HasPrefix(href, "http") {
+			return
+		}
+
+		title := strings.TrimSpace(linkEl.Text())
+		snippet := strings.TrimSpace(s.Find("div.b_caption p").First().Text())
+
+		if title == "" {
+			return
+		}
+		if seenURL[href] {
+			return
+		}
+		seenURL[href] = true
+
+		results = append(results, collectors.Result{
+			ID:          uuid.NewString(),
+			Collector:   "searchengine",
+			Type:        "web_result",
+			Title:       title,
+			Description: snippet,
+			URL:         href,
+			Data: map[string]any{
+				"url":     href,
+				"query":   query,
+				"snippet": snippet,
+				"engine":  "bing",
+			},
+			Tags:       []string{"web", "search", "bing", "link"},
+			Confidence: 0.7,
+			Source:     "bing.com",
+			FoundAt:    time.Now(),
+		})
+	})
+
+	content := string(body)
+	extracted := c.extractNames(content, query)
+	for i := range extracted {
+		extracted[i].Source = "bing.com"
+	}
+	results = append(results, extracted...)
+
+	extracted = c.extractProfiles(content, query)
+	for i := range extracted {
+		extracted[i].Source = "bing.com"
 	}
 	results = append(results, extracted...)
 

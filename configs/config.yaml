@@ -52,7 +52,7 @@ collectors:
   tron:       { enabled: true, key: "${TRON_KEY}" }
   bitcoin:    { enabled: true }
   solana:     { enabled: true }
-  searchengine:{ enabled: true }
+  searchengine:{ enabled: true, key: "${GOOGLE_CUSTOM_SEARCH_API_KEY}", id: "${GOOGLE_CUSTOM_SEARCH_ENGINE_ID}" }
   wayback:    { enabled: true }
   pastebin:   { enabled: true }
   onion:      { enabled: false }

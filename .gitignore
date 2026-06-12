@@ -1,13 +1,35 @@
-# Secrets
-api.txt
-.env
+```
+# Environment
+.env.local
+.env.*
+
+# Dependencies
+go/pkg/mod/
 
 # Build artifacts
-bin/
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.exe
+*.out
 
-# GeoIP databases (downloaded separately)
-data/GeoLite2-*.mmdb
+# Logs and temp files
+*.log
+*.tmp
+*.swp
 
-# Node.js
-web/node_modules/
-web/.next/
+# Editors
+.vscode/
+.idea/
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+```
