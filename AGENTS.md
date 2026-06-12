@@ -57,4 +57,4 @@ Pattern in `main.go:registerCollectors()`:
 - Prometheus metrics at `GET /metrics`
 - Only existing test: `internal/detection/detector_test.go`
 - No CI, no golangci-lint config, no pre-commit hooks
-- Module path `github.com/yourusername/nebula` — may need updating
+- Module path `github.com/Abhinav7903/nebula` — may need updating

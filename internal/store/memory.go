@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yourusername/nebula/internal/collectors"
-	"github.com/yourusername/nebula/internal/detection"
+	"github.com/Abhinav7903/nebula/internal/collectors"
+	"github.com/Abhinav7903/nebula/internal/detection"
 )
 
 type SearchStatus string

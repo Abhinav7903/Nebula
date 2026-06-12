@@ -409,7 +409,7 @@ make lint         # go vet ./...
 make docker-build # Build Docker image
 ```
 
-**Module path note:** `go.mod` currently uses the placeholder path `github.com/yourusername/nebula`. Update it to your actual path if forking:
+**Module path note:** `go.mod` currently uses the placeholder path `github.com/Abhinav7903/nebula`. Update it to your actual path if forking:
 
 ```bash
 go mod edit -module github.com/Abhinav7903/Nebula

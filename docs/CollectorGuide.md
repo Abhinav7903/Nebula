@@ -19,7 +19,7 @@ import (
     "context"
     "time"
     "github.com/google/uuid"
-    "github.com/yourusername/nebula/internal/collectors"
+    "github.com/Abhinav7903/nebula/internal/collectors"
 )
 
 type Collector struct {

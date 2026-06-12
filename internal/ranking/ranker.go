@@ -3,7 +3,7 @@ package ranking
 import (
 	"sort"
 
-	"github.com/yourusername/nebula/internal/collectors"
+	"github.com/Abhinav7903/nebula/internal/collectors"
 )
 
 func Rank(results []collectors.Result) []collectors.Result {

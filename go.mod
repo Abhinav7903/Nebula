@@ -1,4 +1,4 @@
-module github.com/yourusername/nebula
+module github.com/Abhinav7903/nebula
 
 go 1.25.0
 

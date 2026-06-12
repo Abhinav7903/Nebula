@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/yourusername/nebula/internal/collectors"
-	"github.com/yourusername/nebula/internal/metrics"
+	"github.com/Abhinav7903/nebula/internal/collectors"
+	"github.com/Abhinav7903/nebula/internal/metrics"
 )
 
 type GroqSummarizer struct {

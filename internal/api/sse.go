@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/yourusername/nebula/internal/progress"
+	"github.com/Abhinav7903/nebula/internal/progress"
 )
 
 type SSEWriter struct {

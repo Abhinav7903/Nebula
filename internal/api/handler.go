@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/yourusername/nebula/internal/collectors"
-	"github.com/yourusername/nebula/internal/detection"
-	"github.com/yourusername/nebula/internal/metrics"
-	"github.com/yourusername/nebula/internal/progress"
-	"github.com/yourusername/nebula/internal/store"
-	"github.com/yourusername/nebula/internal/summary"
-	"github.com/yourusername/nebula/internal/workers"
+	"github.com/Abhinav7903/nebula/internal/collectors"
+	"github.com/Abhinav7903/nebula/internal/detection"
+	"github.com/Abhinav7903/nebula/internal/metrics"
+	"github.com/Abhinav7903/nebula/internal/progress"
+	"github.com/Abhinav7903/nebula/internal/store"
+	"github.com/Abhinav7903/nebula/internal/summary"
+	"github.com/Abhinav7903/nebula/internal/workers"
 )
 
 type Handler struct {

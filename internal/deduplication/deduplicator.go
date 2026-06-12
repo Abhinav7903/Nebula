@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/yourusername/nebula/internal/collectors"
+	"github.com/Abhinav7903/nebula/internal/collectors"
 )
 
 type Deduplicator struct {
