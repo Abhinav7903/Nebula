@@ -2,7 +2,10 @@ BINARY=nebula
 BUILD_DIR=bin
 GOFLAGS=-ldflags="-s -w"
 
-.PHONY: build run test clean lint docker-build
+.PHONY: deploy build run test clean lint docker-build
+
+deploy: docker-build
+	docker compose up -d --remove-orphans
 
 build:
 	go build $(GOFLAGS) -o $(BUILD_DIR)/$(BINARY) ./cmd/nebula
@@ -20,4 +23,4 @@ lint:
 	go vet ./...
 
 docker-build:
-	docker build -t nebula:latest -f docker/Dockerfile .
+	docker build -t nebula:latest -f Dockerfile .

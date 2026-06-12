@@ -1,0 +1,16 @@
+api.txt
+.env
+.env.example
+.git/
+.gitignore
+AGENTS.md
+LICENSE
+Makefile
+README.md
+bin/
+data/
+docker/
+docs/
+web/node_modules/
+web/.next/
+web/.git/

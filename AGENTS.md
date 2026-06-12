@@ -7,7 +7,7 @@ make build          # go build -ldflags="-s -w" -o bin/nebula ./cmd/nebula
 make run            # build + run
 make test           # go test -v -race -count=1 ./...
 make lint           # go vet ./...
-make docker-build   # docker build -f docker/Dockerfile .
+make docker-build   # docker build -f Dockerfile .
 ```
 
 Config path overridable via `NEBULA_CONFIG` env var.
