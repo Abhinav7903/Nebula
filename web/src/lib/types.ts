@@ -44,3 +44,27 @@ export interface SSEEvent {
   event: string;
   payload: any;
 }
+
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  description: string;
+  engine: string;
+  rank: number;
+}
+
+export interface FetchedPage {
+  url: string;
+  title: string;
+  content: string;
+  status_code: number;
+  engine: string;
+}
+
+export interface WebSearchResponse {
+  query: string;
+  results: WebSearchResult[];
+  pages: FetchedPage[];
+  total: number;
+  sources: string[];
+}

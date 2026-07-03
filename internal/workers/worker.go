@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Abhinav7903/nebula/internal/collectors"
+	"github.com/Abhinav7903/nebula/internal/deduplication"
 	"github.com/Abhinav7903/nebula/internal/metrics"
 	"github.com/Abhinav7903/nebula/internal/progress"
 	"github.com/Abhinav7903/nebula/internal/queue"
@@ -22,6 +23,7 @@ type Pool struct {
 	logger     *slog.Logger
 	numWorkers int
 	done       chan struct{}
+	dedup      *deduplication.Deduplicator
 }
 
 func NewPool(q *queue.Queue, reg *collectors.Registry, hub *progress.Hub, s *store.MemoryStore, logger *slog.Logger, numWorkers int) *Pool {
@@ -33,6 +35,7 @@ func NewPool(q *queue.Queue, reg *collectors.Registry, hub *progress.Hub, s *sto
 		logger:     logger,
 		numWorkers: numWorkers,
 		done:       make(chan struct{}),
+		dedup:      deduplication.New(),
 	}
 }
 
@@ -131,6 +134,10 @@ func (p *Pool) processJob(job *queue.Job) {
 	metrics.CollectorResults.WithLabelValues(job.Collector).Add(float64(len(results)))
 
 	for _, r := range results {
+		if p.dedup.IsDuplicate(r) {
+			continue
+		}
+		p.dedup.Mark(r)
 		p.store.AddResult(job.SearchID, r)
 		p.hub.Send(job.SearchID, progress.Event{
 			Event: "collector_result",

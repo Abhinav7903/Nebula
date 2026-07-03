@@ -54,6 +54,13 @@ type GeoIPConfig struct {
 	LicenseKey string `yaml:"license_key"`
 }
 
+type WebSearchConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	GoogleAPIKey   string `yaml:"google_api_key"`
+	GoogleEngineID string `yaml:"google_engine_id"`
+	BraveAPIKey    string `yaml:"brave_api_key"`
+}
+
 type CollectorsConfig struct {
 	GeoIP       CollectorItem `yaml:"geoip"`
 	DNS          CollectorItem `yaml:"dns"`
@@ -92,6 +99,7 @@ type Config struct {
 	AI         AIConfig         `yaml:"ai"`
 	RateLimit  RateLimitConfig  `yaml:"rate_limit"`
 	GeoIP      GeoIPConfig      `yaml:"geoip"`
+	WebSearch  WebSearchConfig  `yaml:"websearch"`
 	Collectors CollectorsConfig `yaml:"collectors"`
 	APIAuth    APIAuthConfig    `yaml:"api_keys"`
 }
@@ -118,6 +126,9 @@ func Default() *Config {
 		AI: AIConfig{
 			Provider: "groq",
 			Model:    "llama-3.3-70b-versatile",
+		},
+		WebSearch: WebSearchConfig{
+			Enabled: true,
 		},
 		RateLimit: RateLimitConfig{
 			RequestsPerMin: 10,
@@ -154,6 +165,9 @@ func (c *Config) ResolveEnv() {
 	c.Collectors.Ethereum.Key = resolve(c.Collectors.Ethereum.Key)
 	c.Collectors.Tron.Key = resolve(c.Collectors.Tron.Key)
 	c.GeoIP.LicenseKey = resolve(c.GeoIP.LicenseKey)
+	c.WebSearch.GoogleAPIKey = resolve(c.WebSearch.GoogleAPIKey)
+	c.WebSearch.GoogleEngineID = resolve(c.WebSearch.GoogleEngineID)
+	c.WebSearch.BraveAPIKey = resolve(c.WebSearch.BraveAPIKey)
 }
 
 var apiKeyMapping = map[string]string{

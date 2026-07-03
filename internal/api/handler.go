@@ -10,11 +10,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/Abhinav7903/nebula/internal/collectors"
+	"github.com/Abhinav7903/nebula/internal/deduplication"
 	"github.com/Abhinav7903/nebula/internal/detection"
 	"github.com/Abhinav7903/nebula/internal/metrics"
 	"github.com/Abhinav7903/nebula/internal/progress"
+	"github.com/Abhinav7903/nebula/internal/ranking"
 	"github.com/Abhinav7903/nebula/internal/store"
 	"github.com/Abhinav7903/nebula/internal/summary"
+	"github.com/Abhinav7903/nebula/internal/websearch"
 	"github.com/Abhinav7903/nebula/internal/workers"
 )
 
@@ -26,10 +29,11 @@ type Handler struct {
 	hub         *progress.Hub
 	sse         *SSEWriter
 	summarizer  summary.Summarizer
+	websearch   *websearch.Engine
 }
 
 func NewHandler(logger *slog.Logger, s *store.MemoryStore, reg *collectors.Registry,
-	pool *workers.Pool, hub *progress.Hub, summ summary.Summarizer) *Handler {
+	pool *workers.Pool, hub *progress.Hub, summ summary.Summarizer, ws *websearch.Engine) *Handler {
 	return &Handler{
 		logger:     logger,
 		store:      s,
@@ -38,6 +42,7 @@ func NewHandler(logger *slog.Logger, s *store.MemoryStore, reg *collectors.Regis
 		hub:        hub,
 		sse:        NewSSEWriter(hub),
 		summarizer: summ,
+		websearch:  ws,
 	}
 }
 
@@ -145,6 +150,9 @@ func (h *Handler) finalizeSearch(searchID string) {
 	if !ok {
 		return
 	}
+
+	s.Results = deduplication.New().Filter(s.Results)
+	ranking.Rank(s.Results)
 
 	h.hub.Send(searchID, progress.Event{
 		Event: "summary_started",
@@ -264,6 +272,97 @@ func (h *Handler) DeleteSearch(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type webSearchRequest struct {
+	Query    string   `json:"query"`
+	Type     string   `json:"type"`
+	Count    int      `json:"count"`
+	LiveCrawl string  `json:"livecrawl"`
+	URLs     []string `json:"urls,omitempty"`
+	Format   string   `json:"format,omitempty"`
+}
+
+func (h *Handler) WebSearch(w http.ResponseWriter, r *http.Request) {
+	var req webSearchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeProblem(w, http.StatusBadRequest, "invalid_json", "Invalid request body")
+		return
+	}
+
+	req.Query = strings.TrimSpace(req.Query)
+	if req.Query == "" && len(req.URLs) == 0 {
+		writeProblem(w, http.StatusBadRequest, "empty_query", "Query or urls is required")
+		return
+	}
+	if req.Count <= 0 || req.Count > 50 {
+		req.Count = 10
+	}
+
+	opts := websearch.Options{
+		Count: req.Count,
+		Type:  websearch.SearchType(req.Type),
+	}
+
+	switch req.LiveCrawl {
+	case "preferred":
+		opts.LiveCrawl = websearch.LiveCrawlPreferred
+	default:
+		opts.LiveCrawl = websearch.LiveCrawlFallback
+	}
+
+	if opts.Type == "" {
+		opts.Type = websearch.SearchTypeAuto
+	}
+	if opts.Type != websearch.SearchTypeAuto && opts.Type != websearch.SearchTypeFast && opts.Type != websearch.SearchTypeDeep {
+		opts.Type = websearch.SearchTypeAuto
+	}
+
+	type response struct {
+		Query   string              `json:"query,omitempty"`
+		Results []websearch.Result  `json:"results,omitempty"`
+		Pages   []*websearch.FetchedPage `json:"pages,omitempty"`
+		Total   int                 `json:"total"`
+		Sources []string            `json:"sources"`
+	}
+
+	resp := response{Query: req.Query}
+
+	if len(req.URLs) > 0 {
+		fetchOpts := websearch.DefaultFetchOptions()
+		if opts.Type == websearch.SearchTypeDeep {
+			fetchOpts.Timeout = 30 * time.Second
+		}
+		if req.Format != "" {
+			fetchOpts.Format = req.Format
+		}
+		pages := h.websearch.FetchURLs(r.Context(), req.URLs, fetchOpts)
+		resp.Pages = pages
+		resp.Total = len(pages)
+		for _, p := range pages {
+			resp.Sources = append(resp.Sources, p.URL)
+		}
+	}
+
+	if req.Query != "" {
+		results, err := h.websearch.Search(r.Context(), req.Query, opts)
+		if err != nil {
+			writeProblem(w, http.StatusInternalServerError, "search_error", err.Error())
+			return
+		}
+		resp.Results = results
+		resp.Total += len(results)
+
+		seen := make(map[string]bool)
+		for _, r := range results {
+			if !seen[r.Engine] {
+				seen[r.Engine] = true
+				resp.Sources = append(resp.Sources, r.Engine)
+			}
+		}
+	}
+
+	respondJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) Ready(w http.ResponseWriter, r *http.Request) {

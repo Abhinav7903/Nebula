@@ -15,6 +15,7 @@ func NewRouter(handler *Handler, mw *Middleware) http.Handler {
 	mux.HandleFunc("GET /api/v1/searches", handler.ListSearches)
 	mux.HandleFunc("DELETE /api/v1/search/{id}", handler.DeleteSearch)
 
+	mux.HandleFunc("POST /api/v1/websearch", handler.WebSearch)
 	mux.HandleFunc("GET /health", handler.Health)
 	mux.HandleFunc("GET /ready", handler.Ready)
 

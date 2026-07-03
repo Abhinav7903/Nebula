@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useRef, useState } from "react";
-import { Search as SearchIcon, Network, Sparkles, Radar, Shield, Activity, ArrowUpRight, Menu, X } from "lucide-react";
+import { Search as SearchIcon, Network, Sparkles, Radar, Shield, Activity, ArrowUpRight, Menu, X, Globe } from "lucide-react";
 import SearchForm from "@/components/SearchForm";
 import SearchStatus from "@/components/SearchStatus";
 import SearchStatusSkeleton from "@/components/SearchStatusSkeleton";
@@ -183,6 +183,13 @@ export default function Home() {
           </div>
 
           <div className="hidden items-center gap-2 md:flex">
+            <a
+              href="/websearch"
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-surface-900/60 px-3 py-1.5 text-xs text-surface-300 transition-colors hover:border-cyan-400/20 hover:bg-cyan-400/10 hover:text-cyan-100"
+            >
+              <Globe className="h-3.5 w-3.5 text-cyan-300" />
+              Web Search
+            </a>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-surface-900/60 px-3 py-1.5 text-xs text-surface-300">
               <Shield className="h-3.5 w-3.5 text-emerald-300" />
               Secure collection

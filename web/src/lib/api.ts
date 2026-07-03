@@ -31,6 +31,25 @@ export async function deleteSearch(id: string): Promise<void> {
   await fetch(`${BASE}/api/v1/search/${id}`, { method: "DELETE" });
 }
 
+export async function webSearch(params: {
+  query?: string;
+  urls?: string[];
+  type?: string;
+  count?: number;
+  livecrawl?: string;
+}): Promise<import("./types").WebSearchResponse> {
+  const res = await fetch(`${BASE}/api/v1/websearch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Web search failed" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export function streamSearch(
   id: string,
   onEvent: (event: string, payload: any) => void,

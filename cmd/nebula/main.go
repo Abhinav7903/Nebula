@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -41,6 +43,7 @@ import (
 	"github.com/Abhinav7903/nebula/internal/queue"
 	"github.com/Abhinav7903/nebula/internal/store"
 	"github.com/Abhinav7903/nebula/internal/summary"
+	"github.com/Abhinav7903/nebula/internal/websearch"
 	"github.com/Abhinav7903/nebula/internal/workers"
 )
 
@@ -63,7 +66,21 @@ func main() {
 	hub := progress.NewHub(100)
 	reg := collectors.NewRegistry()
 
-	registerCollectors(reg, cfg, log)
+	ws := websearch.New(nil)
+	if cfg.WebSearch.Enabled {
+		ws.AddProvider(websearch.NewDuckDuckGoProvider(nil))
+		ws.AddProvider(websearch.NewBingProvider(nil))
+		ws.AddProvider(websearch.NewMojeekProvider(nil))
+		ws.AddProvider(websearch.NewGoogleProvider(nil,
+			cfg.WebSearch.GoogleAPIKey,
+			cfg.WebSearch.GoogleEngineID,
+		))
+		log.Info("websearch enabled",
+			"providers", len(ws.Providers()),
+		)
+	}
+
+	registerCollectors(reg, cfg, log, ws)
 
 	workerPool := workers.NewPool(q, reg, hub, memStore, log, cfg.Queue.Workers)
 
@@ -74,7 +91,7 @@ func main() {
 		summ = &fallbackSummarizer{}
 	}
 
-	handler := api.NewHandler(log, memStore, reg, workerPool, hub, summ)
+	handler := api.NewHandler(log, memStore, reg, workerPool, hub, summ, ws)
 	mw := api.NewMiddleware(log, cfg.APIAuth.Keys, cfg.APIAuth.RequireKey,
 		cfg.RateLimit.RequestsPerMin, cfg.RateLimit.Burst)
 	router := api.NewRouter(handler, mw)
@@ -115,7 +132,7 @@ func main() {
 	}
 }
 
-func registerCollectors(reg *collectors.Registry, cfg *config.Config, log *slog.Logger) {
+func registerCollectors(reg *collectors.Registry, cfg *config.Config, log *slog.Logger, ws *websearch.Engine) {
 	always := func(c collectors.Collector) { reg.Register(c) }
 	whenEnabled := func(cfg config.CollectorItem, c collectors.Collector) {
 		if !cfg.Enabled {
@@ -133,7 +150,7 @@ func registerCollectors(reg *collectors.Registry, cfg *config.Config, log *slog.
 	always(crtsh.New())
 	always(subdomains.New())
 	always(dnsdumpster.New())
-	always(searchengine.New())
+	always(searchengine.New(ws))
 	always(social.New())
 	always(wayback.New())
 	always(pastebin.New())
@@ -153,13 +170,61 @@ func registerCollectors(reg *collectors.Registry, cfg *config.Config, log *slog.
 	whenEnabled(cfg.Collectors.Onion, onion.New(nil))
 
 	if cfg.Collectors.GeoIP.Enabled {
-		g, err := geoip.New(cfg.GeoIP.CityDBPath, cfg.GeoIP.ASNDBPath)
-		if err == nil {
-			reg.Register(g)
-		} else {
+		if err := ensureGeoIPDBs(cfg.GeoIP.CityDBPath, cfg.GeoIP.ASNDBPath); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: geoip init: %v\n", err)
+		} else {
+			g, err := geoip.New(cfg.GeoIP.CityDBPath, cfg.GeoIP.ASNDBPath)
+			if err == nil {
+				reg.Register(g)
+			} else {
+				fmt.Fprintf(os.Stderr, "warning: geoip init: %v\n", err)
+			}
 		}
 	}
+}
+
+func ensureGeoIPDBs(cityPath, asnPath string) error {
+	dir := filepath.Dir(cityPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("create dir: %w", err)
+	}
+
+	type dbEntry struct{ path, url string }
+	dbs := []dbEntry{
+		{cityPath, "https://raw.githubusercontent.com/P3TERX/GeoLite.mmdb/download/GeoLite2-City.mmdb"},
+		{asnPath, "https://raw.githubusercontent.com/P3TERX/GeoLite.mmdb/download/GeoLite2-ASN.mmdb"},
+	}
+
+	for _, db := range dbs {
+		if _, err := os.Stat(db.path); os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "downloading %s...\n", filepath.Base(db.path))
+			if err := downloadFile(db.path, db.url); err != nil {
+				return fmt.Errorf("download %s: %w", db.path, err)
+			}
+		}
+	}
+	return nil
+}
+
+func downloadFile(path, url string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	out, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	return err
 }
 
 type fallbackSummarizer struct{}
